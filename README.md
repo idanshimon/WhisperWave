@@ -57,7 +57,7 @@ With WhisperWave, transform your media files into readable text quickly and effe
     # The React frontend will be available at http://localhost:3000.
     ```
 
-    
+
 ## Configuration
 
 1. **Ensure the following directories exist:**
@@ -167,6 +167,29 @@ The application will be accessible at http://localhost:9010.
 
 # Frontend
 The application serves a React frontend located in the react-frontend/build directory. Make sure to build the React frontend before running the Flask application.
+
+# Backup and Restore Transcripts
+
+To handle the backup and restoration of the `transcripts` directory, you can use the provided `backup_transcripts.sh` script. This script allows you to compress the `transcripts` directory into a `.tar.gz` file and decompress it when needed.
+
+## Usage
+
+1. **Compress the `transcripts` Directory**
+
+   To compress the `transcripts` directory into a `transcripts.tar.gz` file, run:
+
+   ```bash
+   chmod +x backup_transcripts.sh
+   ./backup_transcripts.sh compress
+   ```
+
+## Decompress the Backup File
+
+    To decompress the transcripts.tar.gz file and restore the transcripts directory, run:
+
+    ```bash
+    ./backup_transcripts.sh decompress
+    ```
 
 # License
 This project is licensed under the MIT License. See the LICENSE file for details.
