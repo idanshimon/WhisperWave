@@ -53,7 +53,7 @@ transcripts/*
 !transcripts/.gitkeep
 uploads/*
 !uploads/.gitkeep
-
+transcripts.tar.gz
 
 # Logs
 logs/
