@@ -1,12 +1,15 @@
+import logging
 from flask import Flask, request, jsonify, send_from_directory
 import os
 import whisper
 from flask_cors import CORS
 import subprocess
 from werkzeug.utils import secure_filename
-import shutil
 from datetime import datetime
 import json
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__, static_folder='./react-frontend/build', static_url_path='/')
 CORS(app)
@@ -18,6 +21,9 @@ if not os.path.exists('transcripts'):
     os.makedirs('transcripts')
 
 
+# List of supported file extensions by Whisper
+SUPPORTED_EXTENSIONS = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.mov')
+
 def is_safe_path(basedir, path, follow_symlinks=True):
     # Check if the path is safe to access
     if follow_symlinks:
@@ -27,106 +33,143 @@ def is_safe_path(basedir, path, follow_symlinks=True):
 
 @app.route('/api/delete/<filename>', methods=['DELETE'])
 def delete_file(filename):
-    # Sanitize the filename
-    filename = secure_filename(filename)
-    file_path = os.path.join('uploads', filename)
-
-    # Ensure the path is safe to prevent directory traversal
-    if not is_safe_path(os.path.join(app.root_path, 'uploads'), file_path):
-        return jsonify({'message': 'Invalid file path'}), 400
-
-    # Delete the file if it exists
     try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            return jsonify({'message': 'File deleted successfully'})
-        else:
+        filename = secure_filename(filename)
+        file_path = os.path.join('uploads', filename)
+
+        if not is_safe_path(os.path.join(app.root_path, 'uploads'), file_path):
+            logging.warning(f"Invalid file path attempt: {file_path}")
+            return jsonify({'message': 'Invalid file path'}), 400
+
+        if not os.path.exists(file_path):
+            logging.warning(f"File {filename} not found.")
             return jsonify({'message': 'File not found'}), 404
+
+        os.remove(file_path)
+        logging.info(f"File {filename} deleted successfully.")
+        return jsonify({'message': 'File deleted successfully'}), 200
+
     except Exception as e:
-        return jsonify({'message': str(e)}), 500
-    
-@app.route('/api/files', methods=['GET'])
-def list_files():
-    files = os.listdir('uploads')
-    return jsonify({"files": files})
+        logging.error(f"Error deleting file {filename}: {str(e)}")
+        return jsonify({'message': 'Error deleting file', 'error': str(e)}), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    uploaded_file = request.files['file']
-    model_size = request.form.get('model_size', 'base')
+    try:
+        uploaded_file = request.files['file']
+        model_size = request.form.get('model_size', 'base')
 
-    # Remove file extension and add a new one for consistency
-    filename_without_extension = os.path.splitext(uploaded_file.filename)[0]
-    audio_file_path = os.path.join('uploads', filename_without_extension + '.wav')
-    transcript_file_path = os.path.join('transcripts', filename_without_extension + '_transcribe.txt')
+        if not uploaded_file:
+            logging.error("No file uploaded.")
+            return jsonify({'message': 'No file uploaded'}), 400
 
-    # Save the original file
-    original_file_path = os.path.join('uploads', uploaded_file.filename)
-    uploaded_file.save(original_file_path)
+        # Get the file extension and validate
+        file_extension = os.path.splitext(uploaded_file.filename)[1].lower()
+        if file_extension not in SUPPORTED_EXTENSIONS:
+            logging.warning(f"Unsupported file format: {file_extension}")
+            return jsonify({'message': 'Unsupported file format'}), 400
 
-    # Process the file for transcription
-    if original_file_path.lower().endswith(('.mp4', '.mov')):
-        # Extract audio using FFmpeg
-        subprocess.run(['ffmpeg', '-y', '-i', original_file_path, '-ac', '1', '-ar', '16000', '-vn', audio_file_path])
-    elif original_file_path.lower().endswith('.wav'):
-        os.rename(original_file_path, audio_file_path)
-    else:
-        return jsonify({'message': 'Unsupported file format'}), 400
+        # Logging the file upload start
+        logging.info(f"Received file: {uploaded_file.filename}, using model size: {model_size}")
 
- # Load the Whisper model and transcribe
-    model = whisper.load_model(model_size)
-    result = model.transcribe(audio_file_path)
-    
-    # Save the transcription
-    with open(transcript_file_path, 'w') as transcript_file:
-        transcript_file.write(result['text'])
-    
-    # Save metadata
-    metadata = {
-        'filename': uploaded_file.filename,
-        'model_size': model_size,
-        'transcription_date': datetime.utcnow().isoformat()  # Add more metadata as needed
-    }
-    metadata_file_path = os.path.join('transcripts', filename_without_extension + '_metadata.json')
-    with open(metadata_file_path, 'w') as metadata_file:
-        json.dump(metadata, metadata_file, indent=4)
+        # Remove file extension and add a new one for consistency
+        filename_without_extension = os.path.splitext(uploaded_file.filename)[0]
+        transcript_file_path = os.path.join('transcripts', filename_without_extension + '_transcribe.txt')
 
-    return jsonify({'message': 'File uploaded and transcribed successfully', 'filename': uploaded_file.filename})
+        # Save the original file
+        original_file_path = os.path.join('uploads', uploaded_file.filename)
+        uploaded_file.save(original_file_path)
+        logging.info(f"File saved: {original_file_path}")
 
-@app.route('/api/check-progress', methods=['GET'])
-def check_progress():
-    filename = request.args.get('filename')
-    if filename:
-        file_path = os.path.join('uploads', filename)
-        if os.path.exists(file_path):
-            current_size = os.stat(file_path).st_size
-            return jsonify({"current_size": current_size})
-    return jsonify({"error": "File not found"}), 404
+        # No conversion necessary for supported formats (mp4, mov, mp3, wav, etc.)
+        audio_file_path = original_file_path
+        logging.info(f"Processing file for transcription: {audio_file_path}")
+
+        # Load the Whisper model and transcribe
+        logging.info(f"Loading Whisper model: {model_size}")
+        model = whisper.load_model(model_size)
+
+        logging.info(f"Starting transcription for file: {audio_file_path}")
+        result = model.transcribe(audio_file_path)
+        logging.info(f"Transcription complete for file: {audio_file_path}")
+
+        # Save the transcription
+        with open(transcript_file_path, 'w') as transcript_file:
+            transcript_file.write(result['text'])
+            logging.info(f"Transcription saved: {transcript_file_path}")
+
+        # Save metadata
+        metadata = {
+            'filename': uploaded_file.filename,
+            'model_size': model_size,
+            'transcription_date': datetime.utcnow().isoformat()  # Add more metadata as needed
+        }
+        metadata_file_path = os.path.join('transcripts', filename_without_extension + '_metadata.json')
+        with open(metadata_file_path, 'w') as metadata_file:
+            json.dump(metadata, metadata_file, indent=4)
+            logging.info(f"Metadata saved: {metadata_file_path}")
+
+        return jsonify({'message': 'File uploaded and transcribed successfully', 'filename': uploaded_file.filename}), 200
+
+    except Exception as e:
+        logging.error(f"Error during file upload or transcription: {str(e)}")
+        return jsonify({'message': 'Error uploading or processing file', 'error': str(e)}), 500
+
+
+@app.route('/api/files', methods=['GET'])
+def list_files():
+    try:
+        files = os.listdir('uploads')
+        logging.info(f"Listing files in uploads: {files}")
+        return jsonify({"files": files}), 200
+    except Exception as e:
+        logging.error(f"Error listing files: {str(e)}")
+        return jsonify({'message': 'Error listing files', 'error': str(e)}), 500
+
 
 @app.route('/api/download/<filename>', methods=['GET'])
 def download_file(filename):
-    # Assuming the original file is in .wav format and the transcript is in .txt format
-    transcript_filename = filename
-    return send_from_directory('transcripts', transcript_filename)
+    try:
+        transcript_filename = filename
+        logging.info(f"Downloading transcript: {transcript_filename}")
+        return send_from_directory('transcripts', transcript_filename), 200
+    except Exception as e:
+        logging.error(f"Error downloading transcript: {str(e)}")
+        return jsonify({'message': 'Error downloading transcript', 'error': str(e)}), 500
+
 
 @app.route('/api/transcript-available/<filename>', methods=['GET'])
 def transcript_available(filename):
-    # Assuming the transcript file naming follows a specific pattern
-    # Adjust the logic based on your actual transcript file naming convention
-    transcript_filename = filename.rsplit('.', 1)[0] + '_transcribe.txt'
-    transcript_path = os.path.join('transcripts', transcript_filename)
-    return jsonify({"available": os.path.exists(transcript_path)})
+    try:
+        transcript_filename = filename.rsplit('.', 1)[0] + '_transcribe.txt'
+        transcript_path = os.path.join('transcripts', transcript_filename)
+        available = os.path.exists(transcript_path)
+        logging.info(f"Transcript availability check for {transcript_filename}: {available}")
+        return jsonify({"available": available}), 200
+    except Exception as e:
+        logging.error(f"Error checking transcript availability for {filename}: {str(e)}")
+        return jsonify({'message': 'Error checking transcript availability', 'error': str(e)}), 500
+
 
 @app.route('/api/transcript/<filename>', methods=['GET'])
 def get_transcript(filename):
-    transcript_filename = filename.rsplit('.', 1)[0] + '_transcribe.txt'
-    transcript_path = os.path.join('transcripts', transcript_filename)
-    if os.path.exists(transcript_path):
+    try:
+        transcript_filename = filename.rsplit('.', 1)[0] + '_transcribe.txt'
+        transcript_path = os.path.join('transcripts', transcript_filename)
+
+        if not os.path.exists(transcript_path):
+            logging.warning(f"Transcript not found for {transcript_filename}")
+            return jsonify({'message': 'Transcript not found'}), 404
+
         with open(transcript_path, 'r') as file:
             transcription = file.read()
-            return jsonify({"transcription": transcription})
-    
-    return jsonify({"error": "Transcript not found"}), 404
+            logging.info(f"Serving transcript for {transcript_filename}")
+            return jsonify({"transcription": transcription}), 200
+
+    except Exception as e:
+        logging.error(f"Error retrieving transcription for {filename}: {str(e)}")
+        return jsonify({'message': 'Error retrieving transcription', 'error': str(e)}), 500
+
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -134,7 +177,9 @@ def serve(path):
     if path != "" and os.path.exists(app.static_folder + '/' + path):
         return send_from_directory(app.static_folder, path)
     else:
+        logging.info(f"Serving React frontend: index.html")
         return send_from_directory(app.static_folder, 'index.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=9010)
