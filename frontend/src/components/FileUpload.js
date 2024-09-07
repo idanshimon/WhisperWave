@@ -9,6 +9,7 @@ const FileUpload = ({ onUploadSuccess, refresh }) => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);  // Single loading state to track the spinner
   const [openDialog, setOpenDialog] = useState(false);  // Track if the confirmation dialog is open
+  const [dragging, setDragging] = useState(false);  // Track drag state
   const cancelTokenSource = useRef(null);  // Reference for cancel token
   const fileInputRef = useRef(null);  // Reference for the file input element
 
@@ -27,6 +28,25 @@ const FileUpload = ({ onUploadSuccess, refresh }) => {
     if (selectedFile) {
       setFile(selectedFile);  // Update state with selected file
     }
+  };
+
+  // Handle drag over event
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  // Handle drag leave event
+  const handleDragLeave = () => {
+    setDragging(false);
+  };
+
+  // Handle file drop event
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const droppedFile = e.dataTransfer.files[0];
+    setFile(droppedFile);  // Set the dropped file to state
   };
 
   // Function to check if the file exists on the server
@@ -125,6 +145,25 @@ const FileUpload = ({ onUploadSuccess, refresh }) => {
 
   return (
     <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+      {/* Drag and Drop Area */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          border: dragging ? '2px dashed #1976d2' : '2px dashed #ccc',
+          padding: '20px',
+          width: '200px',
+          height: '100px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: dragging ? '#f0f0f0' : 'transparent',
+        }}
+      >
+        {file ? file.name : 'Drag & Drop File Here'}
+      </div>
+
       {/* Hidden file input field */}
       <input
         ref={fileInputRef}  // Attach the ref to the file input field
@@ -163,7 +202,7 @@ const FileUpload = ({ onUploadSuccess, refresh }) => {
         startIcon={loading ? <CircularProgress size={20} /> : null}  // Show spinner during loading
         sx={{ textTransform: 'none' }}
       >
-        {loading ? 'Uploading...' : 'Upload'}
+        {loading ? 'Processing...' : 'Transcribe'} {/* Change the button text */}
       </Button>
 
       {/* Cancel Upload Button */}
