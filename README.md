@@ -1,195 +1,102 @@
 # WhisperWave: Flask Transcription Service
 
-WhisperWave is a versatile Flask application designed for efficient audio and video file transcription. Leveraging the Whisper model for accurate transcription and FFmpeg for audio extraction, WhisperWave enables users to upload, process, and manage media files seamlessly. It offers robust features including:
+WhisperWave is a transcription system that allows users to upload audio or video files for transcription using OpenAI's Whisper model. The system is built with a Flask backend and a React frontend, and supports file management functionalities such as file upload, delete, and transcription viewing.
 
-File Upload and Processing: Easily upload audio or video files for transcription.
-Transcription Management: Retrieve, download, and check the availability of transcriptions.
-File Management: List, delete, and monitor the progress of uploaded files.
-Static File Serving: Serve a React-based frontend for a smooth user experience.
-With WhisperWave, transform your media files into readable text quickly and effectively.
+## **Features**
+- Upload audio/video files for transcription.
+- Real-time transcription using the Whisper model.
+- Manage uploaded files (delete, view transcripts).
+- Responsive frontend built with React.
+- Dockerized for ease of deployment in production.
 
-## Features
+The app can be run in both standalone mode (without containers) or using Docker containers.
 
-- **File Upload**: Upload audio or video files for transcription.
-- **File Deletion**: Delete uploaded files.
-- **File Listing**: List all uploaded files.
-- **Progress Check**: Check the upload progress of a file.
-- **Transcript Availability**: Check if a transcript is available for a given file.
-- **Transcript Retrieval**: Get the transcript of a file.
-- **Static File Serving**: Serve static files from a React frontend.
+### **Prerequisites**
+- **Python 3.10** or higher
+- **Node.js 18.x** or higher
+- **npm** (comes with Node.js)
+- **FFmpeg** (for handling audio and video)
+- **Docker** and **Docker Compose** (for running in containers)
 
-## Installation
+## **1. Running Without Containers (Standalone Mode)**
+This mode is ideal for local development.
 
-1. **Clone the repository:**
-
-    ```bash
-    git clone https://github.com/yourusername/your-repository.git
-    cd your-repository
-    ```
-
-2. **Create and activate a virtual environment:**
-
-    ```bash
+### **Backend Setup (Flask)**
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/idanshimon/WhisperWave.git
+   cd WhisperWave/backend
+   ```
+2. Create and activate a Python virtual environment:
+   ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
+    source venv/bin/activate  # On macOS/Linux
+    # or
+    .\venv\Scripts\activate   # On Windows
+   ```
 
-3. **Install dependencies:**
-
+3. Install the dependencies (including Whisper):
     ```bash
     pip install -r requirements.txt
     ```
 
-4. **Install FFmpeg:**
-
-    Follow the [installation instructions](https://ffmpeg.org/download.html) for FFmpeg suitable for your operating system.
-  
-
-5. **Setup React Frontend**
-
-    Navigate to the React frontend directory:
+4. Ensure FFmpeg is installed on your system:
+  On macOS:
     ```bash
-    cd react-frontend
-    # Install Node.js dependencies:
-    npm install
-    # Test Start the React development server:
-    npm start
-    # The React frontend will be available at http://localhost:3000.
+    brew install ffmpeg
     ```
+    On Ubuntu/Debian:
+    ```bash
+    sudo apt update && sudo apt install ffmpeg
+    ```
+5. Run the Flask app:
+    ```bash
+    python app.py
+    ```
+The Flask backend will start on http://localhost:9010.
 
-
-## Configuration
-
-1. **Ensure the following directories exist:**
-
-    - `uploads` - For storing uploaded files.
-    - `transcripts` - For storing transcription files.
-
-   These directories will be created automatically if they do not exist.
-
-2. **Configure Whisper Model:**
-
-    The Whisper model will be loaded based on the `model_size` parameter in the upload request. Ensure the Whisper model is available and compatible with your setup.
-
-## Running the Application
-
-To start the Flask server, run:
-
-```bash
-python app.py
-```
-The application will be accessible at http://localhost:9010.
-
-
-## API Endpoints
-
-- **`POST /api/upload`**
-  
-  Uploads a file for transcription. The request should include a file and an optional `model_size` parameter.
-  
-  **Request:**
-  - **Form-data:**
-    - `file`: The audio or video file to upload.
-    - `model_size` (optional): The size of the Whisper model to use (e.g., `base`, `large`).
-  
-  **Response:**
-  - `200 OK` if the file is uploaded and transcribed successfully.
-  - `400 Bad Request` if the file format is unsupported.
-  - `500 Internal Server Error` if an error occurs during file processing.
-
-- **`DELETE /api/delete/<filename>`**
-  
-  Deletes the specified file from the `uploads` directory.
-  
-  **Request:**
-  - **Path Parameter:**
-    - `filename`: The name of the file to delete.
-  
-  **Response:**
-  - `200 OK` if the file is deleted successfully.
-  - `400 Bad Request` if the file path is invalid.
-  - `404 Not Found` if the file does not exist.
-  - `500 Internal Server Error` if an error occurs during deletion.
-
-- **`GET /api/files`**
-  
-  Lists all files in the `uploads` directory.
-  
-  **Response:**
-  - `200 OK` with a JSON object containing a list of filenames.
-
-- **`GET /api/check-progress`**
-  
-  Checks the upload progress of a file by returning its current size.
-  
-  **Request:**
-  - **Query Parameter:**
-    - `filename`: The name of the file to check.
-  
-  **Response:**
-  - `200 OK` with a JSON object containing the current file size.
-  - `404 Not Found` if the file does not exist.
-
-- **`GET /api/download/<filename>`**
-  
-  Downloads the transcript of the specified file.
-  
-  **Request:**
-  - **Path Parameter:**
-    - `filename`: The name of the transcript file to download.
-  
-  **Response:**
-  - `200 OK` with the transcript file if it exists.
-  - `404 Not Found` if the transcript file does not exist.
-
-- **`GET /api/transcript-available/<filename>`**
-  
-  Checks if a transcript is available for the specified file.
-  
-  **Request:**
-  - **Path Parameter:**
-    - `filename`: The name of the file to check for a transcript.
-  
-  **Response:**
-  - `200 OK` with a JSON object indicating whether the transcript is available (`{"available": true/false}`).
-
-- **`GET /api/transcript/<filename>`**
-  
-  Retrieves the transcript of the specified file.
-  
-  **Request:**
-  - **Path Parameter:**
-    - `filename`: The name of the file for which to retrieve the transcript.
-  
-  **Response:**
-  - `200 OK` with a JSON object containing the transcript text.
-  - `404 Not Found` if the transcript file does not exist.
-
-# Frontend
-The application serves a React frontend located in the react-frontend/build directory. Make sure to build the React frontend before running the Flask application.
-
-# Backup and Restore Transcripts
-
-To handle the backup and restoration of the `transcripts` directory, you can use the provided `backup_transcripts.sh` script. This script allows you to compress the `transcripts` directory into a `.tar.gz` file and decompress it when needed.
-
-## Usage
-
-1. **Compress the `transcripts` Directory**
-
-   To compress the `transcripts` directory into a `transcripts.tar.gz` file, run:
-
+## Frontend Setup (React)
+1. In a new terminal, navigate to the frontend directory:
+    ```bash
+    cd WhisperWave/frontend
+    ```
+2. Install the frontend dependencies and start:
    ```bash
-   chmod +x backup_transcripts.sh
-   ./backup_transcripts.sh compress
+   npm install
+    ```
+3. Start the React development server:
+    ```bash
+    npm start
+    ```
+The frontend will run on http://localhost:3000, and it will proxy API requests to the Flask backend on port 9010.
+
+## **2. Running with Docker Containers **
+This mode is ideal for production or containerized environments.
+
+### Setup Using Docker Compose
+Docker Compose will build and run both the backend (Flask) and the frontend (React) as separate services.
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/idanshimon/WhisperWave.git
+   cd WhisperWave/backend
    ```
-
-## Decompress the Backup File
-
-    To decompress the transcripts.tar.gz file and restore the transcripts directory, run:
+2. Build and run the app using Docker Compose:
 
     ```bash
-    ./backup_transcripts.sh decompress
+    docker-compose up --build
     ```
+
+This will:
+
+* Build the backend (Flask) container and expose it on port 9010.
+* Build the frontend (React) container and serve it via Nginx on port 3000.
+
+### Stopping the Containers
+To stop the running containers:
+```bash
+docker-compose down
+```
 
 # License
 This project is licensed under the MIT License. See the LICENSE file for details.

@@ -36,3 +36,31 @@
     transform: rotate(360deg);
   }
 }
+header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+header img {
+  width: 250px;  /* Adjust the size of the logo */
+  height: auto;
+  border-radius: 50%;  /* Circular logo */
+}
+
+.description-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.description-heading {
+  font-size: 24px;  /* Equivalent to h5 */
+  font-weight: bold;
+}
+
+.description-text {
+  font-size: 16px;  /* Equivalent to body1 */
+  color: #666;  /* Light gray for textSecondary */
+}

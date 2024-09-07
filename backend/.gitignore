@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.env
+venv/
+ENV/
+env/
+*.egg-info/
+*.eggs/
+*.dist-info/
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.db
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+*.tgz
+
+# Environment variables
+.env
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# Coverage reports
+.coverage
+*.cover
+*.nib
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+*.un~
+
+# Project-specific files
+# Transcripts and Uploads
+transcripts/*
+!transcripts/.gitkeep
+uploads/*
+!uploads/.gitkeep
+transcripts.tar.gz
+
+# Logs
+logs/
+*.log
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Misc
+*.bak
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# PyCharm
+.idea/

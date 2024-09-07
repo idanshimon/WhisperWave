@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - FLASK_ENV=production
+      - API_BASE_URL=http://localhost:9010
+    ports:
+      - "9010:9010"   # Expose Flask on port 9010
+    volumes:
+      - ./uploads:/app/uploads
+      - ./transcripts:/app/transcripts
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:80"   # Expose Nginx on port 3000

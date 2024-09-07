@@ -1,0 +1,5 @@
+Flask
+Flask-CORS
+Flask-SQLAlchemy
+Flask-Migrate
+whisper-openai
