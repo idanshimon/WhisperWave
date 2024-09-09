@@ -33,6 +33,7 @@ This mode is ideal for local development.
    ```
 2. Create and activate a Python virtual environment:
    ```bash
+    cd backend
     python -m venv venv
     source venv/bin/activate  # On macOS/Linux
     # or
