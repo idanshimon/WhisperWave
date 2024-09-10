@@ -17,9 +17,15 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Path traversal protection helper function
 def is_safe_path(basedir, path, follow_symlinks=True):
-    if follow_symlinks:
-        return os.path.realpath(path).startswith(basedir)
-    return os.path.abspath(path).startswith(basedir)
+    # Convert both basedir and path to their real absolute paths
+    basedir = os.path.realpath(basedir)
+    real_path = os.path.realpath(path) if follow_symlinks else os.path.abspath(path)
+
+    logging.info(f"Validating real path: {real_path} within base directory: {basedir}")
+
+    # Ensure that the real path starts with the base directory to prevent traversal
+    return real_path.startswith(basedir)
+
 
 
 # Serve React App
@@ -71,59 +77,64 @@ class FileMetadata(db.Model):
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     try:
+        # Ensure file is present
         if 'file' not in request.files:
+            logging.error("No file part in request.")
             return jsonify({'message': 'No file provided'}), 400
 
+        # Retrieve file and log filename
         file = request.files['file']
-        filename = secure_filename(file.filename)  # Secure the filename
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        logging.info(f"Received file: {file.filename}")
 
-        # Check if file_path is safe
+        # Validate filename
+        filename = secure_filename(file.filename)
+        if filename == '':
+            logging.error("Empty filename received after securing.")
+            return jsonify({'message': 'Invalid filename'}), 400
+
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        logging.info(f"Saving file to {file_path}")
+
+        # Ensure the file path is safe
         if not is_safe_path(UPLOAD_FOLDER, file_path):
+            logging.error("File path traversal attempt detected.")
             return jsonify({'message': 'Invalid file path'}), 400
 
-        # Overwrite the existing file if it already exists
-        if os.path.exists(file_path):
-            logging.info(f"Overwriting file {filename}")
-
-        # Save the file (overwrite if exists)
+        # Save file (overwrite if exists)
         file.save(file_path)
         logging.info(f"File saved: {file_path}")
 
-        # Check if file metadata already exists in the database
+        # Handle metadata (create/update)
         file_metadata = FileMetadata.query.filter_by(filename=filename).first()
-
         if file_metadata:
-            # If file exists, update the metadata
-            logging.info(f"File {filename} already exists in the database, updating entry.")
+            logging.info(f"File {filename} exists, updating metadata.")
             file_metadata.upload_timestamp = datetime.utcnow()
             file_metadata.status = 'pending'
         else:
-            # If file does not exist, create new metadata
+            logging.info(f"New file {filename}, creating metadata.")
             file_metadata = FileMetadata(
                 filename=filename,
                 file_type=filename.split('.')[-1],
                 status='pending'
             )
             db.session.add(file_metadata)
-
         db.session.commit()
 
-        # Transcribe the file using Whisper
+        # Transcribe file using Whisper
         logging.info(f"Starting transcription for {filename}")
         model = whisper.load_model('base')
         result = model.transcribe(file_path)
         transcription_path = os.path.join(TRANSCRIPTS_FOLDER, f'{os.path.splitext(filename)[0]}.txt')
 
-        # Check if transcription path is safe
         if not is_safe_path(TRANSCRIPTS_FOLDER, transcription_path):
+            logging.error("Invalid transcription path detected.")
             return jsonify({'message': 'Invalid transcription path'}), 400
 
         with open(transcription_path, 'w') as f:
             f.write(result['text'])
-        logging.info(f"Transcription complete for {filename}. Saved to {transcription_path}")
+        logging.info(f"Transcription saved at {transcription_path}")
 
-        # Update the metadata after transcription
+        # Update file metadata
         file_metadata.status = 'completed'
         file_metadata.transcription_text = result['text']
         db.session.commit()
@@ -133,7 +144,6 @@ def upload_file():
     except Exception as e:
         logging.error(f"Error during file upload or transcription: {str(e)}")
         return jsonify({'message': 'Error during upload or transcription', 'error': str(e)}), 500
-
 
 # Endpoint to list files
 @app.route('/api/files', methods=['GET'])
