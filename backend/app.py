@@ -15,11 +15,19 @@ app = Flask(__name__, static_folder='../frontend/build', static_url_path='')
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 
+# Path traversal protection helper function
+def is_safe_path(basedir, path, follow_symlinks=True):
+    if follow_symlinks:
+        return os.path.realpath(path).startswith(basedir)
+    return os.path.abspath(path).startswith(basedir)
+
+
 # Serve React App
 @app.route('/')
 def serve():
     logging.info("Serving React frontend.")
     return send_from_directory(app.static_folder, 'index.html')
+
 
 # Add additional routes to handle any frontend requests
 @app.errorhandler(404)
@@ -48,6 +56,7 @@ if not os.path.exists(TRANSCRIPTS_FOLDER):
     os.makedirs(TRANSCRIPTS_FOLDER)
     logging.info(f"Created transcripts directory at {TRANSCRIPTS_FOLDER}")
 
+
 # File metadata model
 class FileMetadata(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,6 +65,7 @@ class FileMetadata(db.Model):
     status = db.Column(db.String(20), default='pending')
     upload_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     transcription_text = db.Column(db.Text, nullable=True)
+
 
 # Upload file endpoint
 @app.route('/api/upload', methods=['POST'])
@@ -67,6 +77,10 @@ def upload_file():
         file = request.files['file']
         filename = secure_filename(file.filename)  # Secure the filename
         file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Check if file_path is safe
+        if not is_safe_path(UPLOAD_FOLDER, file_path):
+            return jsonify({'message': 'Invalid file path'}), 400
 
         # Overwrite the existing file if it already exists
         if os.path.exists(file_path):
@@ -101,6 +115,10 @@ def upload_file():
         result = model.transcribe(file_path)
         transcription_path = os.path.join(TRANSCRIPTS_FOLDER, f'{os.path.splitext(filename)[0]}.txt')
 
+        # Check if transcription path is safe
+        if not is_safe_path(TRANSCRIPTS_FOLDER, transcription_path):
+            return jsonify({'message': 'Invalid transcription path'}), 400
+
         with open(transcription_path, 'w') as f:
             f.write(result['text'])
         logging.info(f"Transcription complete for {filename}. Saved to {transcription_path}")
@@ -117,17 +135,16 @@ def upload_file():
         return jsonify({'message': 'Error during upload or transcription', 'error': str(e)}), 500
 
 
-
 # Endpoint to list files
 @app.route('/api/files', methods=['GET'])
 def list_files():
     logging.info("Fetching list of files.")
     files = FileMetadata.query.all()
-    
+
     if not files:
         logging.info("No files found.")
         return jsonify([]), 200  # Return an empty list if no files
-    
+
     return jsonify([{
         'filename': file.filename,
         'status': file.status,
@@ -139,39 +156,57 @@ def list_files():
 # Check if a file with the same name exists
 @app.route('/api/check-file/<filename>', methods=['GET'])
 def check_file(filename):
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file_path = os.path.join(UPLOAD_FOLDER, secure_filename(filename))  # Secure the filename
+
+    # Check if the path is safe
+    if not is_safe_path(UPLOAD_FOLDER, file_path):
+        return jsonify({'exists': False, 'message': 'Invalid file path'}), 400
+
     if os.path.exists(file_path):
         return jsonify({'exists': True}), 200
     return jsonify({'exists': False}), 200
+
 
 # Endpoint to serve uploaded files
 @app.route('/api/download/<filename>', methods=['GET'])
 def download_file(filename):
     logging.info(f"Downloading file {filename}")
+    file_path = os.path.join(UPLOAD_FOLDER, secure_filename(filename))  # Secure the filename
+
+    # Check if file_path is safe
+    if not is_safe_path(UPLOAD_FOLDER, file_path):
+        return jsonify({'message': 'Invalid file path'}), 400
+
     return send_from_directory(UPLOAD_FOLDER, filename)
+
 
 # Endpoint to retrieve transcription
 @app.route('/api/transcription/<filename>', methods=['GET'])
 def get_transcription(filename):
     logging.info(f"Retrieving transcription for {filename}")
-    file_metadata = FileMetadata.query.filter_by(filename=filename).first()
+    file_metadata = FileMetadata.query.filter_by(filename=secure_filename(filename)).first()  # Secure the filename
     if not file_metadata:
         logging.error(f"File {filename} not found.")
         return jsonify({'message': 'File not found'}), 404
     return jsonify({'transcription_text': file_metadata.transcription_text})
 
+
 # Endpoint to delete files
 @app.route('/api/delete/<filename>', methods=['DELETE'])
 def delete_file(filename):
     logging.info(f"Deleting file {filename}")
-    file_metadata = FileMetadata.query.filter_by(filename=filename).first()
+    file_metadata = FileMetadata.query.filter_by(filename=secure_filename(filename)).first()  # Secure the filename
     if not file_metadata:
         logging.error(f"File {filename} not found.")
         return jsonify({'message': 'File not found'}), 404
 
     # Delete files from uploads and transcripts
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    transcript_path = os.path.join(TRANSCRIPTS_FOLDER, f'{os.path.splitext(filename)[0]}.txt')
+    file_path = os.path.join(UPLOAD_FOLDER, secure_filename(filename))
+    transcript_path = os.path.join(TRANSCRIPTS_FOLDER, f'{os.path.splitext(secure_filename(filename))[0]}.txt')
+
+    # Check if both paths are safe
+    if not is_safe_path(UPLOAD_FOLDER, file_path) or not is_safe_path(TRANSCRIPTS_FOLDER, transcript_path):
+        return jsonify({'message': 'Invalid file path'}), 400
 
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -184,6 +219,7 @@ def delete_file(filename):
     db.session.commit()
 
     return jsonify({'message': 'File deleted successfully'}), 200
+
 
 if __name__ == '__main__':
     logging.info("Starting Flask app.")
